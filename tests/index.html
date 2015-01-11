@@ -1,0 +1,46 @@
+<!DOCTYPE html>
+<html>
+    <head>
+        <meta charset="utf-8">
+        <title>QUnit picEdit tests</title>
+        <link rel="stylesheet" href="//code.jquery.com/qunit/qunit-1.16.0.css">
+        <link rel="stylesheet" type="text/css" href="../dist/css/picedit.min.css" />
+    </head>
+    <body>
+        <div style="margin:10% auto 0 auto; display: none;">
+            <form action="" method="post" enctype="multipart/form-data" id="form1">
+                <input type="file" name="uploadbox1" id="uploadbox1">
+
+                <div style="margin-top:30px; text-align: center;">
+                    <button type="submit">Submit</button>
+                </div>
+            </form>
+            <form action="" method="post" enctype="multipart/form-data" id="form2">
+                <input type="file" name="uploadbox1" id="uploadbox2">
+
+                <div style="margin-top:30px; text-align: center;">
+                    <button type="submit">Submit</button>
+                </div>
+            </form>
+            <form action="" method="post" enctype="multipart/form-data" id="form3">
+                <input type="file" name="uploadbox1" id="uploadbox3">
+
+                <div style="margin-top:30px; text-align: center;">
+                    <button type="submit">Submit</button>
+                </div>
+            </form>
+        </div>
+        <div id="qunit"></div>
+        <div id="qunit-fixture"></div>
+        <script type="text/javascript" src="http://cdnjs.cloudflare.com/ajax/libs/jquery/1.10.2/jquery.min.js"></script>
+        <script src="//code.jquery.com/qunit/qunit-1.16.0.js"></script>
+        <script src="lib/blanket.min.js"></script>
+        <script src="../dist/js/picedit.js" data-cover></script>
+        <script type="text/javascript">
+        $(function() {
+            $('#uploadbox1').picEdit();
+        });
+        </script>
+        <script src="tests.js"></script>
+    </body>
+</html>
