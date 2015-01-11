@@ -26,6 +26,9 @@
 			redirectUrl: false,				// Page url for redirect on form submit
 			maxWidth: 400,					// Max width parameter
 			maxHeight: 'auto',				// Max height parameter
+            minWidth: 1,                    // Minimal width parameter
+            minHeight: 1,                   // Minimal height parameter
+            cropRatio: 'auto',              // Image ratio parameter
 			aspectRatio: true,				// Preserve aspect ratio
             defaultImage: false             // Default image to be used with the plugin
         };
@@ -66,7 +69,7 @@
 				// You already have access to the DOM element and
 				// the options via the instance, e.g. this.element
 				// and this.settings
-				
+
 				// Save instance of this for inline functions
 				var _this = this;
                 // Get type of element to be used (type="file" and type="picedit" are supported)
@@ -127,8 +130,8 @@
 						_this._filename = file.name;
 					}
 					var reader = new FileReader();
-					reader.onload = function(e) { 
-						_this._create_image_with_datasrc(e.target.result, false, file); 
+					reader.onload = function(e) {
+						_this._create_image_with_datasrc(e.target.result, false, file);
 					};
 					reader.readAsDataURL(file);
 				 }
@@ -153,7 +156,7 @@
 				if (!window.Clipboard) { // Firefox
 					var pasteCatcher = $(document.createElement("div"));
 					pasteCatcher.attr("contenteditable","true").css({
-						"position" : "absolute", 
+						"position" : "absolute",
 						"left" : "-999",
 						"width" : "0",
 						"height" : "0",
@@ -348,19 +351,36 @@
 			getUserMedia = browserUserMedia.bind(navigator);
 			getUserMedia({
 					audio: false,
-					video: true
+                    video :{
+                        mandatory: {
+                            maxWidth: 1280,
+                            maxHeight: 720,
+                            minWidth: 1280,
+                            minHeight: 720
+                        }
+                    }
 				},
 				function(stream) {
 					var videoElement = _this._videobox.find("video")[0];
 					videoElement.src = URL.createObjectURL(stream);
 					//resize viewport
 					videoElement.onloadedmetadata = function() {
-						if(videoElement.videoWidth && videoElement.videoHeight) {
-							if(!_this._image) _this._image = {};
-							_this._image.width = videoElement.videoWidth;
-							_this._image.height = videoElement.videoHeight;
-							_this._resizeViewport();
-						}
+                        var timer = 10;
+                        var vidRatio;
+                        var waitForDimensions = window.setInterval(function () {
+                            //see if the video dimensions are available
+                            if (videoElement.videoWidth * videoElement.videoHeight > 0) {
+                                clearInterval(waitForDimensions);
+                                vidRatio = videoElement.videoWidth / videoElement.videoHeight;
+                                //console.log("after waiting " + timer + " ms, actual video size is: " + videoElement.videoWidth + " x " + videoElement.videoHeight);
+                                _this._resizeViewport();
+                            }
+                            //If not, wait another 10ms
+                            else {
+                                //console.log("No video dimensions after " + timer + " ms");
+                                timer += 10;
+                            }
+                        }, 10);
 					};
 					_this._videobox.addClass("active");
 				},
@@ -377,9 +397,10 @@
 			var live = this._videobox.find("video")[0];
 			var canvas = document.createElement('canvas');
 			var ctx = canvas.getContext("2d");
-			canvas.width = live.clientWidth;
-			canvas.height = live.clientHeight;
-			ctx.drawImage(live, 0, 0, canvas.width, canvas.height);
+			canvas.width = live.videoWidth;
+			canvas.height = live.videoHeight;
+            _this._setVariable('resize_ratio', (live.videoWidth / live.clientWidth));
+			ctx.drawImage(live, 0, 0);
 			this._create_image_with_datasrc(canvas.toDataURL("image/png"), function() {
 				_this._videobox.removeClass("active");
 			});
@@ -412,11 +433,10 @@
 		_create_image_with_datasrc: function(datasrc, callback, file, dataurl) {
 			var _this = this;
 			var img = document.createElement("img");
-            img.setAttribute('crossOrigin', 'anonymous');
 			if(file) img.file = file;
 			img.src = datasrc;
-			img.onload = function() {
-				if(dataurl) {
+            img.onload = function() {
+                if(dataurl) {
                     var canvas = document.createElement('canvas');
                     var ctx = canvas.getContext('2d');
                     canvas.width = img.width;
@@ -424,13 +444,31 @@
                     ctx.drawImage(img, 0, 0);
                     img.src = canvas.toDataURL('image/png');
                 }
+                var resizeRatio = _this._getVariable("resize_ratio");
+
+                if ((img.height) < (_this.options.minHeight / resizeRatio)) {
+                    return _this.set_messagebox("Sorry, image height too small: " + img.height);
+                } else if ((img.width) < (_this.options.minWidth / resizeRatio)) {
+                    console.log("Sorry, image width too small: " + img.height);
+                    return _this.set_messagebox("Sorry, image width too small");
+                }
+
                 _this._image = img;
-				_this._resizeViewport();
-				_this._paintCanvas();
-				_this.options.imageUpdated(_this._image);
-				_this._mainbuttons.removeClass("active");
-				if(callback && typeof(callback) == "function") callback();
-			};
+                _this._resizeViewport();
+
+                /* Set the cropratio for the cropframe */
+                if (_this.options.cropRatio !== 'auto') {
+                    if (_this.options.minWidth > 1) {
+                        _this._cropping.cropframe[0].style.width = (Math.ceil(_this.options.minWidth / _this._getVariable('resize_ratio'))) + 'px' ;
+                        _this._cropping.cropframe[0].style.height = ((1/_this.options.cropRatio) * parseInt(_this._cropping.cropframe[0].style.width, 10)) + 'px' ;
+                    }
+                }
+
+                _this._paintCanvas();
+                _this.options.imageUpdated(_this._image);
+                _this._mainbuttons.removeClass("active");
+                if(callback && typeof(callback) == "function") callback();
+            };
 		},
 		// Functions to controll cropping functionality (drag & resize cropping box)
 		_bindSelectionDrag: function() {
@@ -441,7 +479,7 @@
 			$(window).on("mousedown touchstart", function(e) {
 				var evtpos = (e.clientX) ? e : e.originalEvent.touches[0];
 				_this._cropping.x = evtpos.clientX;
-   				_this._cropping.y = evtpos.clientY;
+    			_this._cropping.y = evtpos.clientY;
 				_this._cropping.w = eventbox[0].clientWidth;
    				_this._cropping.h = eventbox[0].clientHeight;
 				eventbox.on("mousemove touchmove", function(event) {
@@ -478,8 +516,26 @@
 		_selection_resize_movement: function(e) {
 			var cropframe = this._cropping.cropframe[0];
 			var evtpos = (e.clientX) ? e : e.originalEvent.touches[0];
-			cropframe.style.width = (this._cropping.w + evtpos.clientX - this._cropping.x) + 'px';
-   			cropframe.style.height = (this._cropping.h + evtpos.clientY - this._cropping.y) + 'px';
+            var newwidth = (this._cropping.w + evtpos.clientX - this._cropping.x);
+            var newheight = (this._cropping.h + evtpos.clientY - this._cropping.y);
+
+            if (this.options.cropRatio !== 'auto') {
+                if (Math.abs(newwidth - parseInt(cropframe.style.width, 10) > newheight - parseInt(cropframe.style.width, 10))) {
+                    newheight = newwidth / this.options.cropRatio;
+                } else {
+                    newwidth = newheight * this.options.cropRatio;
+                }
+            }
+            var resizeRatio = this._getVariable("resize_ratio");
+
+            if ((newheight) < (this.options.minHeight / resizeRatio)
+                || (newwidth) < (this.options.minWidth / resizeRatio)
+            ) {
+                newheight = Math.ceil(this.options.minHeight / resizeRatio);
+                newwidth = Math.ceil(newheight * this.options.cropRatio);
+            }
+            cropframe.style.width = newwidth + 'px';
+            cropframe.style.height = newheight + 'px';
 		},
 		_selection_drag_movement: function(e) {
 			var cropframe = this._cropping.cropframe[0];
@@ -625,6 +681,8 @@
 				  viewport.width = parseInt(viewport.height * aspect, 10);
 				}
 			}
+            console.log('resizeViewport -> resize_ratio: ', (img.width / viewport.width));
+            this._setVariable("resize_ratio", img.width / viewport.width);
 			//set the viewport size (resize the canvas)
 			$(this.element).css({
 				"width": viewport.width,
@@ -648,9 +706,9 @@
 				// handle click actions on top nav buttons
 				else if($(this).hasClass("picedit_action")) {
 					$(this).parent(".picedit_element").toggleClass("active").siblings(".picedit_element").removeClass("active");
-					if($(this).parent(".picedit_element").hasClass("active")) 
+					if($(this).parent(".picedit_element").hasClass("active"))
 						$(this).closest(".picedit_nav_box").addClass("active");
-					else 
+					else
 						$(this).closest(".picedit_nav_box").removeClass("active");
 				}
 			});
@@ -676,6 +734,14 @@
 		_setVariable: function(variable, value) {
 			this._variables[variable] = value;
 			$(this.element).find('[data-variable="' + variable + '"]').val(value);
+		},
+		// Get an interface variable
+		_getVariable: function(variable) {
+			return this._variables[variable];
+		},
+		// Check if an interface variable exists
+		_hasVariable: function(variable) {
+			return (variable in this._variables);
 		},
 		// form submitted
 		_formsubmit: function() {
