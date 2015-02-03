@@ -446,11 +446,10 @@
                 }
                 var resizeRatio = _this._getVariable("resize_ratio");
 
-                if ((img.height) < (_this.options.minHeight / resizeRatio)) {
+                if ((img.height * resizeRatio) < (_this.options.minHeight)) {
                     return _this.set_messagebox("Sorry, image height too small: " + img.height);
-                } else if ((img.width) < (_this.options.minWidth / resizeRatio)) {
-                    console.log("Sorry, image width too small: " + img.height);
-                    return _this.set_messagebox("Sorry, image width too small");
+                } else if ((img.width * resizeRatio) < (_this.options.minWidth)) {
+                    return _this.set_messagebox("Sorry, image width too small: " + img.width);
                 }
 
                 _this._image = img;
@@ -602,8 +601,8 @@
 			var view = this._viewport;		//viewport sizes
 			var cropframe = this._cropping.cropframe[0];
 			var real = {						//image real sizes
-				"width": this._image.width,
-				"height": this._image.height
+                "width": this._getVariable("resize_width"),
+                "height": this._getVariable("resize_height")
 			};
 			var crop = {						//crop area sizes and position
 				"width": cropframe.clientWidth,
